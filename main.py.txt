@@ -1,0 +1,83 @@
+import os
+import requests
+from flask import Flask, request
+from threading import Thread
+import time
+
+# 🔹 अपनी details यहां डालो
+BOT_TOKEN = "7706384053:AAHj1N29b6gMzzFg3_pUnuJIuRyL-mkqm34"
+CHAT_ID = "7237521201"
+NEWS_API_KEY = "d44e60d4d17747dea240e57560324184"
+
+# Flask app (Render को 24/7 रखने के लिए)
+app = Flask(_name_)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=8080)
+
+# 🔹 Telegram पर message भेजने का function
+def send_telegram_message(text):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
+    try:
+        requests.post(url, data=data)
+    except Exception as e:
+        print("Error sending message:", e)
+
+# 🔹 Crypto news fetch करने का function
+def get_crypto_news():
+    url = f"https://newsapi.org/v2/everything?q=crypto&apiKey={NEWS_API_KEY}&pageSize=10&sortBy=publishedAt"
+    response = requests.get(url)
+    articles = response.json().get("articles", [])
+    news_list = []
+    for a in articles:
+        news_list.append(f"📰 <b>{a['title']}</b>\n{a['url']}")
+    return "\n\n".join(news_list) if news_list else "कोई ताज़ा crypto news नहीं मिली।"
+
+# 🔹 Background में हर 30 मिनट में news भेजने का function
+def auto_update_news():
+    while True:
+        news = get_crypto_news()
+        send_telegram_message("⏰ <b>Crypto News Update</b>\n\n" + news)
+        time.sleep(1800)  # 30 मिनट
+
+# 🔹 Commands सुनने का function
+def listen_commands():
+    last_update_id = None
+    while True:
+        try:
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+            if last_update_id:
+                url += f"?offset={last_update_id + 1}"
+            resp = requests.get(url).json()
+            for update in resp.get("result", []):
+                last_update_id = update["update_id"]
+                message = update.get("message", {}).get("text", "").lower()
+
+                if "hello" in message:
+                    send_telegram_message("नमस्ते! मैं आपका crypto bot हूँ 🚀")
+                elif "crypto" in message:
+                    send_telegram_message(get_crypto_news())
+                elif "news" in message:
+                    send_telegram_message(get_crypto_news())
+                elif "update" in message:
+                    send_telegram_message("🔄 अपडेट भेज रहा हूँ...\n" + get_crypto_news())
+                else:
+                    send_telegram_message("माफ़ कीजिए, मैं वो command नहीं समझा।")
+        except Exception as e:
+            print("Command error:", e)
+        time.sleep(3)
+
+if _name_ == "_main_":
+    # Flask server thread
+    Thread(target=run_flask).start()
+
+    # Auto news update thread
+    Thread(target=auto_update_news).start()
+
+    # Commands listener
+    listen_commands()
